@@ -1,0 +1,14 @@
+[project]
+name = "agent-self-evolution"
+version = "0.1.0"
+description = "Training-free LLM agent self-evolution with experience learning"
+readme = "README.md"
+authors = [
+    { name = "Aurora-Shang-tech", email = "2736274271@qq.com" }
+]
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "alfworld>=0.4.2",
+    "openai>=3.16.2",
+    "pyyaml>=6.0.3",
+]
