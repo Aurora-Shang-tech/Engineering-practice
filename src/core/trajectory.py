@@ -1,83 +1,76 @@
-from dataclasses import asdict, dataclass, field
+"""ALFWorld Agent轨迹数据结构"""
+
 import json
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 @dataclass
 class TrajectoryStep:
-    """记录Agent与环境的一次交互"""
+    """Agent与ALFWorld的一次交互"""
 
-    step_id: int
-    observation: str
-    thought: str
-    action: str
-    next_observation: str
+    observation: str                 # 执行动作之前的环境状态
+    admissible_actions: list[str]    # 当时环境允许的动作
+    thought: str                     # LLM的推理
+    action: str                      # Agent最终选择的动作
+    valid_format: bool                # LLM输出格式是否正确
+    admissible: bool                 # action是否属于当前合法动作集合
+    next_observation: str            # 执行动作之后的环境反馈
     score: float
     done: bool
     won: bool
 
 @dataclass
 class Trajectory:
-    """记录一个完整 Episode 的交互轨迹"""
+    """一个完整ALFWorld episode的轨迹"""
 
-    gamefile: str
     task: str
-    agent_name: str
-
+    gamefile: str
+    success: bool = False
+    truncated: bool = False # 是否因为达到最大步数而被截断
     steps: list[TrajectoryStep] = field(default_factory=list)
 
     def add_step(
-            self,
-            observation: str,
-            thought: str,
-            action: str,
-            next_observation: str,
-            score: float,
-            done: bool,
-            won: bool,
+        self,
+        step: TrajectoryStep,
     ) -> None:
-        """向当前轨迹添加一条交互记录"""
-        step = TrajectoryStep(
-                step_id=len(self.steps),
-                observation=observation,
-                thought=thought,
-                action=action,
-                next_observation=next_observation,
-                score=score,
-                done=done,
-                won=won,
-        )
+        """记录一步交互"""
+
         self.steps.append(step)
 
     def __len__(self) -> int:
-        """返回当前轨迹包含步数"""
-        
+        """返回episode已执行步数"""
+
         return len(self.steps)
-    
-    @property
-    def success(self) -> bool:
-        "返回当前Episode是否成功"
 
-        if not self.steps:
-            return False
+    def save_json(
+        self,
+        path: str,
+    ) -> None:
+        """将轨迹保存成JSON"""
 
-        return self.steps[-1].won
-    
-
-    def save_json(self, path: str) -> None:
-        """将完整轨迹保存为JSON文件"""
-        
         output_path = Path(path)
-        
-        # 如果父目录不存在就自动创建
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # dataclass -> dict -> JSON
-        data = asdict(self)
-        
-        # 添加Episode级统计信息
-        data["success"] = self.success
-        data["total_steps"] = len(self)
-
         with output_path.open("w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            json.dump(asdict(self), f, ensure_ascii=False, indent=2)
 
+    @classmethod
+    def load_json(
+        cls,
+        path: str,
+    ) -> "Trajectory":
+        """从JSON文件恢复轨迹"""
+
+        input_path = Path(path)
+        with input_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        steps = [TrajectoryStep(**step) for step in data.get("steps", [])]
+
+        return cls(
+            task = data["task"],
+            gamefile=data["gamefile"],
+            success=data.get("success", False),
+            truncated=data.get("truncated", False),
+            steps=steps,
+        )
