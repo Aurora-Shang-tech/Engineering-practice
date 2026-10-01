@@ -18,6 +18,14 @@ class CounterfactualResult:
     success: bool
     continuation_steps: int
 
+@dataclass(frozen=True)
+class CounterfactualBatchResult:
+    """多个反事实候选的验证结果"""
+
+    critical_step: int
+    original_action: str
+    results: tuple[CounterfactualResult, ...]
+
 
 def verify_counterfactual(
     trajectory: Trajectory,
@@ -145,3 +153,37 @@ def verify_counterfactual(
 
     finally:
         env.close()
+
+
+def verify_counterfactual_candidates(
+    trajectory: Trajectory,
+    critical_step: int,
+    counterfactual_actions: tuple[str, ...],
+    agent,
+    *,
+    max_steps: int = 50,
+) -> CounterfactualBatchResult:
+    """逐个验证多个反事实候选动作"""
+
+    if critical_step < 0 or critical_step >= len(trajectory.steps):
+        raise IndexError(f"critical_step out of range: {critical_step}")
+
+    original_step = trajectory.steps[critical_step]
+
+    results = []
+
+    for action in counterfactual_actions:
+        result = verify_counterfactual(
+            trajectory=trajectory,
+            critical_step=critical_step,
+            counterfactual_action=action,
+            agent=agent,
+            max_steps=max_steps,
+        )
+        results.append(result)
+
+    return CounterfactualBatchResult(
+        critical_step=critical_step,
+        original_action=original_step.action,
+        results=tuple(results),
+    )

@@ -135,9 +135,9 @@ class FailureAnalyzer:
         }
 
         candidate_prefixes = (
-            "Counterfactual action 1:"
-            "Counterfactual action 2:"
-            "Counterfactual action 3:"
+            "Counterfactual action 1:",
+            "Counterfactual action 2:",
+            "Counterfactual action 3:",
         )
 
         candidates = []
@@ -153,7 +153,7 @@ class FailureAnalyzer:
                     matched = True
                     break
             
-            if mathced:
+            if matched:
                 continue
 
             for prefix in candidate_prefixes:
@@ -184,7 +184,7 @@ class FailureAnalyzer:
             failure_type=fields["failure_type"],
             failure_reason=fields["failure_reason"],
             original_action=fields["original_action"],
-            counterfactual_action=tuple(candidates),
+            counterfactual_actions=tuple(candidates),
             expected_effect=fields["expected_effect"],
         )
 
@@ -212,7 +212,12 @@ class FailureAnalyzer:
                 raise ValueError("Counterfactual action is identical to original action")
 
             if action not in step.admissible_actions:
-                raise ValueError("Counterfactual action is not admissible")
+                raise ValueError(
+                    f"Counterfactual action is not admissible: {action!r}\n"
+                    f"Critical step: {analysis.critical_step}\n"
+                    f"Original: {step.action!r}\n"
+                    f"Admissible actions: {step.admissible_actions}"
+                )
 
 
 

@@ -3,12 +3,16 @@
 from pathlib import Path
 from src.agents.react_agent import ReActAgent
 from src.core.trajectory import Trajectory
-from src.counterfactual.verifier import verify_counterfactual
+from src.counterfactual.verifier import verify_counterfactual_candidates
 from src.llm.client import LLMClient
 
 TRAJECTORY_PATH = Path("outputs/baseline_qwen3.8-chat_train_seed42_50/episode_005.json")
 CRITICAL_STEP = 12
-COUNTERFACTUAL_ACTION = "go to countertop 2"
+COUNTERFACTUAL_ACTIONS = (
+    "go to countertop 2",
+    "go to countertop 3",
+    "go to cabinet 4",
+)
 MAX_STEPS = 50
 
 def main():
@@ -26,10 +30,9 @@ def main():
         "Original action: "
         f"{trajectory.steps[CRITICAL_STEP].action}"
     )
-    print(
-        "Counterfactual action: "
-        f"{COUNTERFACTUAL_ACTION}"
-    )
+    print("Counterfactual actions: ")
+    for index, action in enumerate(COUNTERFACTUAL_ACTIONS, start=1):
+        print(f" {index}. {action}")
 
     # 2.创建与baseline相同的LLM
     llm = LLMClient()
@@ -39,10 +42,10 @@ def main():
     )
 
     # 3.真正执行反事实验证
-    result = verify_counterfactual(
+    result = verify_counterfactual_candidates(
         trajectory=trajectory,
         critical_step=CRITICAL_STEP,
-        counterfactual_action=COUNTERFACTUAL_ACTION,
+        counterfactual_actions=COUNTERFACTUAL_ACTIONS,
         agent=agent,
         max_steps=MAX_STEPS,
     )
@@ -55,15 +58,11 @@ def main():
 
     print(f"Critical step: {result.critical_step}")
     print(f"Original action: {result.original_action}")
-    print(
-        "Counterfactual action: "
-        f"{result.counterfactual_action}"
-    )
-    print(f"Success: {result.success}")
-    print(
-        "Continuation steps: "
-        f"{result.continuation_steps}"
-    )
+    for index, candidate in enumerate(result.results, start=1):
+        print()
+        print(f"Candidate {index}: {candidate.counterfactual_action}")
+        print(f"Success: {candidate.success}")
+        print(f"Continuation steps: {candidate.continuation_steps}")
 
 
 if __name__ == "__main__":

@@ -25,7 +25,9 @@ def main():
 
     print()
     print(f"Original action: {analysis.original_action}")
-    print(f"Counterfactual action: {analysis.counterfactual_action}")
+    print("Counterfactual actions:")
+    for index, action in enumerate(analysis.counterfactual_actions, start=1):
+        print(f" {index}. {action}")
 
     print()
     print(f"Expected effect: {analysis.expected_effect}")
