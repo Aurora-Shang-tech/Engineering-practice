@@ -13,12 +13,12 @@ class FailureAnalysis:
     failure_reason: str
 
     original_action: str
-    counterfactual_action: str
+    counterfactual_actions: tuple[str, ...]
     expected_effect: str
 
 
 class FailureAnalyzer:
-    """分析失败轨迹并提出一个可验证的反事实动作"""
+    """分析失败轨迹并提出多个个可验证的反事实动作"""
 
     def __init__(self, llm):
         self.llm = llm
@@ -38,7 +38,7 @@ class FailureAnalyzer:
                     "You are analyzing a failed ALFWorld agent trajectory.\n"
                     "Your goal is to identify the earliest important decision "
                     "that caused or strongly contributed to the failure, and "
-                    "propose one better counterfactual action.\n\n"
+                    "propose up to three promising counterfactual actions.\n\n"
 
                     "ALFWorld uses symbolic object types. "
                     "Do not assume semantically similar object types are "
@@ -49,21 +49,25 @@ class FailureAnalyzer:
                     "1. Choose exactly one critical step.\n"
                     "2. Prefer the earliest decision whose replacement could "
                     "reasonably prevent the failure.\n"
-                    "3. The counterfactual action MUST be copied exactly from "
+                    "3. Propose up to three counterfactual actions, ordered from "
+                    "most promising to least promising.\n"
+                    "4. Every counterfactual action MUST be copied exactly from "
                     "the admissible actions at that critical step.\n"
-                    "4. The counterfactual action MUST differ from the "
-                    "original action.\n"
-                    "5. Do not use observations that were only available "
+                    "5. Every counterfactual action MUST differ from the "
+                    "original action, and the candidates must be distinct.\n"
+                    "6. Do not use observations that were only available "
                     "after the critical step to justify the decision.\n"
-                    "6. Do not assume the counterfactual succeeds. It will be "
-                    "tested in the real environment later.\n\n"
+                    "7. Do not assume any counterfactual succeeds. Each candidate "
+                    "will be tested in the real environment later.\n\n"
 
                     "Return exactly this format:\n"
                     "Critical step: <integer>\n"
                     "Failure type: <short description>\n"
                     "Failure reason: <description>\n"
                     "Original action: <action>\n"
-                    "Counterfactual action: <action>\n"
+                    "Counterfactual action 1: <action>\n"
+                    "Counterfactual action 2: <action or NONE>\n"
+                    "Counterfactual action 3: <action or NONE>\n"
                     "Expected effect: <description>"
                 ),
             },
@@ -127,16 +131,38 @@ class FailureAnalyzer:
             "Failure type:": "failure_type",
             "Failure reason:": "failure_reason",
             "Original action:": "original_action",
-            "Counterfactual action:": "counterfactual_action",
             "Expected effect:": "expected_effect",
         }
+
+        candidate_prefixes = (
+            "Counterfactual action 1:"
+            "Counterfactual action 2:"
+            "Counterfactual action 3:"
+        )
+
+        candidates = []
 
         for line in response.splitlines():
             stripped = line.strip()
 
+            matched = False
+
             for prefix, field_name in prefixes.items():
                 if stripped.startswith(prefix):
                     fields[field_name] = stripped[len(prefix):].strip()
+                    matched = True
+                    break
+            
+            if mathced:
+                continue
+
+            for prefix in candidate_prefixes:
+                if stripped.startswith(prefix):
+                    action = stripped[len(prefix):].strip()
+
+                    if action and action.upper() != "NONE":
+                        candidates.append(action)
+
                     break
 
         required = set(prefixes.values())
@@ -144,6 +170,9 @@ class FailureAnalyzer:
 
         if missing:
             raise ValueError(f"Failure analysis response is missing fields:{sorted(missing)}")
+
+        if not candidates:
+            raise ValueError("Failure analysis response contains no counterfactual actions")
 
         try:
             critical_step = int(fields["critical_step"])
@@ -155,7 +184,7 @@ class FailureAnalyzer:
             failure_type=fields["failure_type"],
             failure_reason=fields["failure_reason"],
             original_action=fields["original_action"],
-            counterfactual_action=fields["counterfactual_action"],
+            counterfactual_action=tuple(candidates),
             expected_effect=fields["expected_effect"],
         )
 
@@ -174,12 +203,16 @@ class FailureAnalyzer:
 
         if analysis.original_action != step.action:
             raise ValueError(f"Original action does not match trajectory")
+        
+        if len(set(analysis.counterfactual_actions)) != len(analysis.counterfactual_actions):
+            raise ValueError("Counterfactual actions contain duplicates")
 
-        if analysis.counterfactual_action == step.action:
-            raise ValueError("Counterfactual action is identical to original action")
+        for action in analysis.counterfactual_actions:
+            if action == step.action:
+                raise ValueError("Counterfactual action is identical to original action")
 
-        if analysis.counterfactual_action not in step.admissible_actions:
-            raise ValueError("Counterfactual action is not admissible")
+            if action not in step.admissible_actions:
+                raise ValueError("Counterfactual action is not admissible")
 
 
 
