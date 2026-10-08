@@ -101,12 +101,25 @@ def initial_user_prompt(
     task: str,
     observation: str,
     admissible_actions: Sequence[str],
+    experiences: Sequence[str] = (),
 ) -> str:
     """构造episode第一步的user prompt"""
 
     actions = available_actions(admissible_actions)
     lines = [
         f"Task: {task}",
+    ]
+
+    if experiences:
+        lines.extend([
+            "",
+            "Relevant experience from previous tasks:",
+        ])
+
+        for index, experience in enumerate(experiences, start=1):
+            lines.append(f"{index}. {experience}")
+
+    lines.extend([
         "",
         "Current step: 1",
         "",
@@ -114,7 +127,7 @@ def initial_user_prompt(
         observation,
         "",
         "Available actions (copy one exactly):",
-    ]
+    ])
     lines.extend(action for action in actions)
     lines.extend([
         "",
@@ -128,6 +141,7 @@ def initial_messages(
     task: str,
     observation: str,
     admissible_actions: Sequence[str],
+    experiences: Sequence[str] = (),
 ) -> list[dict]:
     """创建一个episode的初始对话"""
 
@@ -142,6 +156,7 @@ def initial_messages(
                 task=task,
                 observation=observation,
                 admissible_actions=admissible_actions,
+                experiences=experiences,
                 ),
          },
     ]

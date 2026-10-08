@@ -11,11 +11,11 @@ from src.data.manifest import load_manifest
 from src.core.trajectory import Trajectory
 
 MAX_STEPS = 50
-MANIFEST_PATH = Path("outputs/manifests/train_seed42_1000.json")
+MANIFEST_PATH = Path("outputs/manifests/valid_seen_seed42_140.json")
 MODEL = os.getenv("OPENAI_MODEL")
 MODEL_DIR_NAME = MODEL.replace("/", "_")
 
-OUTPUT_DIR = Path(f"outputs/baseline_{MODEL_DIR_NAME}_train_seed42_1000")
+OUTPUT_DIR = Path(f"outputs/baseline_{MODEL_DIR_NAME}_valid_seen_seed42_140")
 
 
 def main() -> None:

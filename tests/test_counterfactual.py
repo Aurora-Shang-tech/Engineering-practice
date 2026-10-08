@@ -64,6 +64,11 @@ def main():
         print(f"Success: {candidate.success}")
         print(f"Continuation steps: {candidate.continuation_steps}")
 
+        if candidate.trajectory is not None:
+            output_path = Path(f"outputs/counterfactual_episode005_candidate_{index}.json")
+            candidate.trajectory.save_json(str(output_path))
+            print(f"Saved trajectory: {output_path}")
+
 
 if __name__ == "__main__":
     main()

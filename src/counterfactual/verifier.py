@@ -17,6 +17,7 @@ class CounterfactualResult:
 
     success: bool
     continuation_steps: int
+    trajectory: Trajectory | None = None
 
 @dataclass(frozen=True)
 class CounterfactualBatchResult:
@@ -149,6 +150,7 @@ def verify_counterfactual(
             counterfactual_action=counterfactual_action,
             success=continuation.success,
             continuation_steps=len(continuation),
+            trajectory=continuation,
         )
 
     finally:

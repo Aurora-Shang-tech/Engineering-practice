@@ -1,4 +1,4 @@
-"""评估ReAct baseline"""
+"""评估Experience-Augmented ReAct"""
 
 import json
 import os
@@ -9,18 +9,25 @@ from src.envs.environment import ALFWorldEnvironment
 from src.llm.client import LLMClient
 from src.data.manifest import load_manifest
 from src.core.trajectory import Trajectory
+from src.memory.store import ExperienceStore
 
 MAX_STEPS = 50
-MANIFEST_PATH = Path("outputs/manifests/train_seed42_1000.json")
+MANIFEST_PATH = Path("outputs/manifests/valid_seen_seed42_140.json")
+MEMORY_PATH = Path("outputs/memory/ordinary_experience_store_qwen3.8-chat_train_seed42_1000.json")
+EXPERIENCE_TOP_K = 3
+
 MODEL = os.getenv("OPENAI_MODEL")
 MODEL_DIR_NAME = MODEL.replace("/", "_")
 
-OUTPUT_DIR = Path(f"outputs/baseline_{MODEL_DIR_NAME}_train_seed42_1000")
+OUTPUT_DIR = Path(f"outputs/ordinary_memory_{MODEL_DIR_NAME}_valid_seen_seed42_140")
 
 
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     llm = LLMClient()
+
+    experience_store = ExperienceStore()
+    experience_store.load(MEMORY_PATH)
     
     # 从固定manifest加载实验任务
     games = load_manifest(MANIFEST_PATH)
@@ -53,7 +60,12 @@ def main() -> None:
 
         else:
             env = ALFWorldEnvironment(gamefile=str(game.game_file), max_steps=MAX_STEPS)
-            agent = ReActAgent(llm=llm, max_steps=MAX_STEPS)
+            agent = ReActAgent(
+                llm=llm, 
+                max_steps=MAX_STEPS,
+                experience_store=experience_store,
+                experience_top_k=EXPERIENCE_TOP_K,
+            )
 
             try:
                 trajectory = agent.run(env)

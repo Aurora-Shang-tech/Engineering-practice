@@ -7,9 +7,17 @@ from src.envs.environment import ALFWorldEnvironment
 class ReActAgent:
     """使用LLM在ALFWorld中执行任务"""
 
-    def __init__(self, llm, max_steps: int = 50):
+    def __init__(
+        self, 
+        llm, 
+        max_steps: int = 50,
+        experience_store=None,
+        experience_top_k: int = 3,
+    ):
         self.llm = llm
         self.max_steps = max_steps
+        self.experience_store = experience_store
+        self.experience_top_k = experience_top_k
 
     def run(self, env: ALFWorldEnvironment) -> Trajectory:
         """在一个ALFWorld game中运行完整episode"""
@@ -20,11 +28,25 @@ class ReActAgent:
             gamefile=state.gamefile
         )
 
+        experiences = []
+
+        if self.experience_store is not None:
+            retrieved = self.experience_store.retrieve(
+                task=state.task,
+                top_k=self.experience_top_k,
+            )
+
+            experiences = [
+                experience.lesson
+                for experience in retrieved
+            ]
+
         # messages同时承担完整交互历史
         messages = initial_messages(
             task=state.task,
             observation=state.observation,
             admissible_actions=state.admissible_actions,
+            experiences=experiences,
         )
 
         return self._run_loop(

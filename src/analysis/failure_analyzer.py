@@ -23,8 +23,12 @@ class FailureAnalyzer:
     def __init__(self, llm):
         self.llm = llm
 
-    def analyze(self, trajectory: Trajectory) -> FailureAnalysis:
-        """分析失败轨迹"""
+    def analyze(
+        self,
+        trajectory: Trajectory,
+        max_retries: int = 3,
+    ) -> FailureAnalysis:
+        """分析失败轨迹，校验失败时让LLM重新生成"""
 
         if trajectory.success:
             raise ValueError("Cannot analyze a successful trajectory")
@@ -77,16 +81,63 @@ class FailureAnalyzer:
             },
         ]
 
-        response = self.llm.chat(messages)
+        last_error = None
 
-        analysis = self._parse_response(response)
+        for attempt in range(max_retries + 1):
+            response = self.llm.chat(messages)
 
-        self._validate_analysis(
-            trajectory=trajectory,
-            analysis=analysis,
+            try:
+                analysis = self._parse_response(response)
+
+                self._validate_analysis(
+                    trajectory=trajectory,
+                    analysis=analysis,
+                )
+
+                return analysis
+
+            except ValueError as exc:
+                last_error = exc
+
+                if attempt == max_retries:
+                    break
+
+                print(
+                    f"Failure analysis validation failed "
+                    f"(attempt {attempt + 1}/{max_retries + 1}):"
+                )
+                print(exc)
+                print("Retrying...")
+
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": response,
+                    }
+                )
+
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "Your previous analysis was invalid.\n\n"
+                            f"Validation error:\n{exc}\n\n"
+                            "Correct the analysis. "
+                            "Pay particular attention to the critical step, "
+                            "the original action, and the admissible actions. "
+                            "Every counterfactual action must be copied EXACTLY "
+                            "from the admissible actions listed for the chosen "
+                            "critical step.\n\n"
+                            "Return the complete analysis again using exactly "
+                            "the required format."
+                        ),
+                    }
+                )
+
+        raise ValueError(
+            f"Failure analysis remained invalid after "
+            f"{max_retries + 1} attempts:\n{last_error}"
         )
-
-        return analysis
 
     def _build_prompt(self, trajectory: Trajectory) -> str:
         """把失败轨迹转换成分析Prompt"""
