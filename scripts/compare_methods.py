@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from math import comb
 
 METHODS = {
     "ReAct": "baseline",
@@ -60,6 +61,20 @@ def compare(
             counts["success -> success"] += 1
 
     return counts
+
+def exact_mcnemar(b: int, c: int) -> float:
+    """计算双侧 Exact McNemar 检验的p值"""
+
+    n = b + c
+
+    if n == 0:
+        return 1.0
+
+    k = min(b, c)
+
+    p_value = 2 * sum(comb(n, i) for i in range(k + 1)) / (2 ** n)
+
+    return min(1.0, p_value)
                 
 
 def main():
@@ -117,7 +132,10 @@ def main():
             improved = counts["fail -> success"]
             regressed = counts["success -> fail"]
 
+            p_value = exact_mcnemar(regressed, improved)
+
             print(f"  net improvement     : {improved - regressed}")
+            print(f"  McNemar exact p     : {p_value:.6f}")
 
 
 if __name__ == "__main__":

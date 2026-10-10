@@ -1,19 +1,14 @@
 # Agent Self-Evolution — Experiment Results
-
-> 实验记录：截至 2026-10-08 已完成的 ALFWorld 实验。本文仅记录实际已运行的结果；待开展实验明确标注为 TODO。
+> 实验记录：本文仅记录已运行结果；未记录的 API Token 与实际费用不作实测值报告。
 
 ## 1. 实验目标
-
 检验训练自由（Training-Free）的经验记忆是否能改善 ReAct Agent 在 ALFWorld 上的任务成功率与决策效率，并通过逐级消融评估：
-
 1. 普通失败轨迹反思（Ordinary Memory）的作用；
 2. 关键步骤分析和未验证反事实建议（Unverified Memory）的额外作用；
 3. 真实环境反事实验证（CF-Verified Memory）的额外作用。
-
 所有经验从训练任务的失败轨迹构建，held-out 任务不用于经验构建。所有方法保持同一模型、任务 manifest 和评估协议。
 
 ## 2. 数据、模型与协议
-
 | 设置 | 数值或说明 |
 |---|---|
 | 环境 | ALFWorld 文本任务 |
@@ -27,13 +22,13 @@
 | 经验检索 | BM25 对 `source_task` 评分 |
 | Top-K | 3 |
 | 去重 | 完全相同 `lesson` 文本去重 |
-
 Manifest：
 
 ```text
 outputs/manifests/train_seed42_1000.json
 outputs/manifests/valid_seen_seed42_140.json
 outputs/manifests/valid_unseen_seed42_134.json
+
 ```
 
 `valid_seen` / `valid_unseen` 为不同 held-out split；两者的任务类型组成不同，不应仅依据原始成功率差异推断哪个 split 必然更难。
@@ -41,7 +36,6 @@ outputs/manifests/valid_unseen_seed42_134.json
 ## 3. 训练集 ReAct Baseline
 
 ### 3.1 整体结果
-
 | Metric | Result |
 |---|---:|
 | Episodes | 1000 |
@@ -58,7 +52,6 @@ outputs/manifests/valid_unseen_seed42_134.json
 | Valid action rate | 96.36% |
 
 ### 3.2 按任务类型
-
 | Task type | Successes / Episodes | Success rate |
 |---|---:|---:|
 | `look_at_obj_in_light` | 80/88 | 90.91% |
@@ -67,32 +60,27 @@ outputs/manifests/valid_unseen_seed42_134.json
 | `pick_cool_then_place_in_recep` | 105/138 | 76.09% |
 | `pick_heat_then_place_in_recep` | 97/130 | 74.62% |
 | `pick_two_obj_and_place` | 231/247 | 93.52% |
-
 133 个失败中，`clean`、`cool`、`heat` 合计 106 个，约占 79.7%。这些任务是后续失败分析和经验提炼的重要来源。
 
 ## 4. 失败分析与反事实验证
 
 ### 4.1 失败分析
-
 输入：133 条失败轨迹。LLM 输出：
-
 - `critical_step`
 - `failure_type`
 - `failure_reason`
 - `original_action`
 - `counterfactual_actions`
 - `expected_effect`
-
 输出目录：
 
 ```text
 outputs/failure_analysis_qwen3.8-chat_train_seed42_1000/
+
 ```
 
 ### 4.2 环境反事实验证
-
 对候选动作在对应 ALFWorld 任务中重放历史步骤、替换关键动作并继续执行，记录候选后续成功与否。
-
 | Metric | Result |
 |---|---:|
 | Failed episodes analyzed | 133 |
@@ -103,59 +91,54 @@ outputs/failure_analysis_qwen3.8-chat_train_seed42_1000/
 | Episodes with ≥1 successful candidate | 91/133 (68.42%) |
 | Episodes with no successful candidate | 42/133 (31.58%) |
 | Average candidates per failed episode | 2.79 |
-
 输出目录：
 
 ```text
 outputs/counterfactual_qwen3.8-chat_train_seed42_1000/
+
 ```
 
 **解释边界**：这些统计描述在重放协议下观察到的候选继续执行结果，不能直接等同于对某一步动作的严格因果效应估计。
 
 ## 5. 三类经验记忆
-
 | Method | Extraction input | Raw | Unique | Removed duplicates |
 |---|---|---:|---:|---:|
 | Ordinary | 完整失败轨迹 | 133 | 132 | 1 |
 | Unverified | 失败分析、关键步骤、反事实候选与预期效果 | 133 | 132 | 1 |
 | Verified | 失败分析、反事实环境执行结果与后续轨迹 | 133 | 130 | 3 |
-
 共同点：经验包含 `failure_type`、`lesson`、`source_task`；使用 exact-string lesson 去重；通过 `BM25(source_task)` 检索 Top-3 lessons；经验在初始 ReAct Prompt 中注入。不同方法的提炼 Prompt 输入并不相同，这正是各消融方法的定义。
-
 经验文件：
 
 ```text
 outputs/memory/ordinary_experience_store_qwen3.8-chat_train_seed42_1000.json
 outputs/memory/unverified_experience_store_qwen3.8-chat_train_seed42_1000.json
 outputs/memory/experience_store_qwen3.8-chat_train_seed42_1000.json
+
 ```
 
 ## 6. Held-out 整体结果
 
 ### 6.1 成功率和平均决策步数
-
 | Method | Seen successes | Seen success rate | Seen avg steps | Unseen successes | Unseen success rate | Unseen avg steps |
 |---|---:|---:|---:|---:|---:|---:|
 | ReAct | 120/140 | 85.71% | 19.97 | 122/134 | 91.04% | 18.24 |
 | Ordinary | 122/140 | 87.14% | 18.59 | 127/134 | 94.78% | 15.32 |
 | Unverified | 127/140 | 90.71% | 17.01 | 129/134 | 96.27% | 14.55 |
 | **Verified (Ours)** | **128/140** | **91.43%** | **15.54** | **131/134** | **97.76%** | **13.22** |
+| Reflexion（最多两次尝试） | 133/140 | 95.00% | 25.19 | 130/134 | 97.01% | 21.78 |
 
 ### 6.2 逐级差异（百分点）
-
 | Comparison | Seen Δ success rate | Unseen Δ success rate |
 |---|---:|---:|
 | ReAct → Ordinary | +1.43 pp | +3.74 pp |
 | Ordinary → Unverified | +3.57 pp | +1.49 pp |
 | Unverified → Verified | +0.72 pp | +1.49 pp |
 | ReAct → Verified | +5.72 pp | +6.72 pp |
-
 相对 ReAct，Verified 平均决策步数下降约 22.2%（seen）和 27.5%（unseen）。相对 Unverified，Verified 平均决策步数进一步下降约 8.6%（seen）和 9.1%（unseen）。
 
 ## 7. 按任务类型的成功率
 
 ### 7.1 `valid_seen`（140 episodes）
-
 | Task type | ReAct | Ordinary | Unverified | Verified |
 |---|---:|---:|---:|---:|
 | `look_at_obj_in_light` | 12/13 | 10/13 | 11/13 | 12/13 |
@@ -166,7 +149,6 @@ outputs/memory/experience_store_qwen3.8-chat_train_seed42_1000.json
 | `pick_two_obj_and_place` | 23/24 | 23/24 | 24/24 | 23/24 |
 
 ### 7.2 `valid_unseen`（134 episodes）
-
 | Task type | ReAct | Ordinary | Unverified | Verified |
 |---|---:|---:|---:|---:|
 | `look_at_obj_in_light` | 18/18 | 17/18 | 18/18 | 18/18 |
@@ -175,15 +157,12 @@ outputs/memory/experience_store_qwen3.8-chat_train_seed42_1000.json
 | `pick_cool_then_place_in_recep` | 18/21 | 21/21 | 18/21 | 20/21 |
 | `pick_heat_then_place_in_recep` | 21/23 | 22/23 | 23/23 | 23/23 |
 | `pick_two_obj_and_place` | 17/17 | 16/17 | 17/17 | 17/17 |
-
 **观察**：各任务类型并非单调改善。例如 unseen `cool` 上 Ordinary 为 21/21，Verified 为 20/21；seen `look` 上 Ordinary 低于 ReAct。不能据总体增益推断每类任务均获益。
 
 ## 8. Episode-level 配对分析
-
 配对单位为相同 split、相同 episode 文件。`fail → success` 表示后一个方法修复了前一个方法的失败；`success → fail` 表示出现回退。净增益为两者之差。
 
 ### 8.1 `valid_seen`
-
 | Comparison | Fail→Fail | Fail→Success | Success→Fail | Success→Success | Net gain |
 |---|---:|---:|---:|---:|---:|
 | ReAct → Ordinary | 10 | 10 | 8 | 112 | +2 |
@@ -192,7 +171,6 @@ outputs/memory/experience_store_qwen3.8-chat_train_seed42_1000.json
 | ReAct → Verified | 7 | 13 | 5 | 115 | +8 |
 
 ### 8.2 `valid_unseen`
-
 | Comparison | Fail→Fail | Fail→Success | Success→Fail | Success→Success | Net gain |
 |---|---:|---:|---:|---:|---:|
 | ReAct → Ordinary | 1 | 11 | 6 | 116 | +5 |
@@ -201,21 +179,15 @@ outputs/memory/experience_store_qwen3.8-chat_train_seed42_1000.json
 | ReAct → Verified | 1 | 11 | 2 | 120 | +9 |
 
 ### 8.3 解释
-
 Verified 相对 Unverified：
-
 - `valid_seen`：修复 5 个 episode，回退 4 个，净增 1 个成功任务。
 - `valid_unseen`：修复 4 个 episode，回退 2 个，净增 2 个成功任务。
-
 Verified 相对 ReAct：
-
 - `valid_seen`：修复 13 个 episode，回退 5 个，净增 8 个。
 - `valid_unseen`：修复 11 个 episode，回退 2 个，净增 9 个。
-
-因此，真实环境验证表现出方向一致的净收益，但**没有消除负迁移**。仅凭目前的配对计数不能宣称统计显著性。后续计划使用 exact McNemar test 并结合 case study 分析。
+因此，真实环境验证表现出方向一致的净收益，但**没有消除负迁移**。仅凭目前的配对计数不能宣称统计显著性。未在本报告中开展显著性检验或针对负迁移的额外 case study。
 
 ## 9. 动作格式与有效性（已记录的摘要）
-
 | Split / Method | Format errors | Inadmissible actions | Truncated rate |
 |---|---:|---:|---:|
 | seen / ReAct | 5 | 100 | 2.86% |
@@ -226,7 +198,6 @@ Verified 相对 ReAct：
 | unseen / Ordinary | 10 | 81 | 0.75% |
 | unseen / Unverified | 0 | 24 | 0.00% |
 | unseen / Verified | 0 | 22 | 0.00% |
-
 这组指标表明记忆方法的动作格式/合法性表现并不一致；例如 Ordinary 在 unseen 上的格式错误和不可执行动作多于 Verified。应在 episode 级别检查原因，避免仅凭聚合指标作机制归因。
 
 ## 10. 实验文件与复现
@@ -240,6 +211,7 @@ outputs/counterfactual_qwen3.8-chat_train_seed42_1000/
 outputs/ordinary_experiences_qwen3.8-chat_train_seed42_1000/
 outputs/unverified_experiences_qwen3.8-chat_train_seed42_1000/
 outputs/experiences_qwen3.8-chat_train_seed42_1000/
+
 ```
 
 ### 10.2 测试阶段
@@ -253,39 +225,59 @@ outputs/unverified_memory_qwen3.8-chat_valid_seen_seed42_140/
 outputs/unverified_memory_qwen3.8-chat_valid_unseen_seed42_134/
 outputs/memory_qwen3.8-chat_valid_seen_seed42_140/
 outputs/memory_qwen3.8-chat_valid_unseen_seed42_134/
+
 ```
 
 ### 10.3 配对比较
 
 ```bash
 uv run python -m scripts.compare_methods
+
 ```
 
 脚本读取各方法的 `episode_*.json`，根据顶层 `success` 字段按 episode 文件名对齐，输出四种方法的配对转移计数。此脚本目前**尚未计算 McNemar p-value**。
 
 ## 11. 当前结论与证据边界
-
 1. **经验记忆具有正向总体效果**：Ordinary 在两个 held-out split 上均优于无记忆 ReAct。
 2. **结构化失败分析具有进一步收益**：Unverified 在两个 split 上均优于 Ordinary。
 3. **环境反事实验证提供初步额外收益**：Verified 在两个 split 上的成功率和平均决策步数均优于 Unverified，但净成功数分别仅多 1 和 2。
 4. **负迁移仍然存在**：配对比较显示部分原本成功的任务会在引入或更换经验记忆后失败。
-
 这些观察尚不足以证明各阶段的性能差异均具有统计显著性；不同经验提炼输入与生成内容可能同时影响结果。不能把所有最终收益单独归因于验证机制。
 
-## 12. 下一步实验（TODO）
+## 12. 经验规模消融与推理调用估算
 
-- [ ] Exact McNemar paired test、置信区间与必要的多次重复实验。
-- [ ] 选取 `fail→success` 和 `success→fail` 的 episode，检查检索经验、决策轨迹和负迁移原因。
-- [ ] Reflexion baseline（保持模型、任务清单和评估协议一致）。
-- [ ] 经验库规模/积累阶段对成功率的影响曲线。
-- [ ] API 调用次数、输入输出 token 与实际成本统计。
-- [ ] BM25 `source_task` 与其他经验检索字段/策略的消融。
+使用训练集 Verified 经验库（130 条）构建固定随机顺序的嵌套子集。M0 与 M100 复用原有基线，其他规模单独评测。
+
+| 经验比例 | 条数 | Seen 成功数 | Seen 成功率 | Seen 平均步数 | Unseen 成功数 | Unseen 成功率 | Unseen 平均步数 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| M0 | 0 | 120/140 | 85.71% | 19.97 | 122/134 | 91.04% | 18.24 |
+| M25 | 32 | 127/140 | 90.71% | 16.15 | 125/134 | 93.28% | 15.80 |
+| M50 | 65 | 132/140 | 94.29% | 14.72 | 128/134 | 95.52% | 15.05 |
+| M75 | 98 | 130/140 | 92.86% | 16.00 | 127/134 | 94.78% | 13.87 |
+| M100 | 130 | 128/140 | 91.43% | 15.54 | 131/134 | 97.76% | 13.22 |
+
+Seen 最优成功率出现在 M50，Unseen 最优成功率出现在 M100。该实验仅使用一次固定随机子集采样，经验数量增加并不保证成功率单调提高。
+
+### 12.1 推理调用估算
+
+| 方法 | Seen 平均决策步数 | Unseen 平均决策步数 |
+|---|---:|---:|
+| ReAct | 19.97 | 18.24 |
+| Ordinary | 18.59 | 15.32 |
+| Unverified | 17.01 | 14.55 |
+| Verified | 15.54 | 13.22 |
+| Reflexion | 25.19 | 21.78 |
+
+ReAct 类方法在每个记录决策步骤恰好调用一次 LLM 且无额外未记录重试时，平均决策步数可视为平均推理调用次数的估算。Reflexion 还记录了 Seen 26 次、Unseen 17 次反思调用，因此平均总调用约为 25.38 和 21.91 次/任务。Reflexion 允许最多两次尝试，推理预算不同。以上仅涉及验证阶段，未包含训练轨迹收集、失败分析、反事实验证、经验提炼成本。历史响应没有持久化 usage，无法精确恢复 Token 数和实际费用。
+
+### 12.2 分任务类型观察
+
+基于第 7 节统计，Verified 相对 ReAct 在 Seen 的 clean/cool/heat 分别提高 11.11/8.00/18.75 个百分点；在 Unseen 分别提高 16.13/9.53/8.70 个百分点。简单拾取放置已达到 100%，没有提升空间。部分其他记忆方法在单项任务上持平或更优，不能将总体提升推广到所有任务类型。
 
 ## 13. 复现注意事项
-
 - 当前脚本主要通过文件顶部常量配置路径，执行前核对 manifest、模型和输出目录。
 - 生成失败分析、反事实验证和经验提炼会调用 LLM API，成本较高；已有结果可复用，不必重跑。
 - 对比时必须使用相同 split 和相同 episode 文件集合。
 - 输出目录包含历史实验记录，避免误删或覆盖。
-- 目前尚无完整 API 成本指标，不应在报告中填写估计值作为实测结果。
+- 历史实验未记录 Token usage 或实际费用，不能将基于步数的调用估算当作实测账单。
 
